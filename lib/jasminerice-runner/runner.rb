@@ -4,6 +4,7 @@ module Jasminerice
 
     def initialize(environment)
       @environment = environment
+      @reporter = Reporter.new
     end
 
     def capybara_driver
@@ -13,19 +14,10 @@ module Jasminerice
     def run
       Capybara.default_driver = capybara_driver
       visit jasmine_url
-      print "Running jasmine specs"
+      print "Running jasmine specs\n"
 
       wait_for_finished
-      results = get_results
-      puts "Jasmine results - Passed: #{results[:passed]} Failed: #{results[:failed]} Total: #{results[:total]}"
-      failures = results[:failures]
-
-      if failures.size == 0
-        puts "Jasmine specs passed, yay!"
-      else
-        report_failures(failures)
-        raise "Jasmine specs failed"
-      end
+      @reporter.report(get_results)
     end
 
     def jasmine_url
@@ -46,21 +38,19 @@ module Jasminerice
       }
     end
 
-    def report_failures(failures)
-      puts 'Jasmine failures:  '
-      for suiteName,suiteFailures in failures
-        puts "  " + suiteName + "\n"
-        for specName,specFailures in suiteFailures
-          puts "    " + specName + "\n"
-          for specFailure in specFailures
-            puts "      " + specFailure + "\n"
-          end
-        end
-        puts "\n"
+    def wait_for_finished
+      find_jasmine_reporter
+      start = Time.now
+      while true
+        break if page.evaluate_script("window.jasmineRiceReporter.finished")
+        sleep 1
+        print "."
       end
     end
 
-    def wait_for_finished
+    private
+
+    def find_jasmine_reporter
       reporter = page.evaluate_script("window.jasmineRiceReporter")
       if reporter.nil?
         if @environment.present?
@@ -72,14 +62,6 @@ module Jasminerice
              "sure that #{filename} exists and that jasminerice_reporter is included."
         raise "Reporter not found"
       end
-
-      start = Time.now
-      while true
-        break if page.evaluate_script("window.jasmineRiceReporter.finished")
-        sleep 1
-        print "."
-      end
-      print "\n"
     end
   end
 end
